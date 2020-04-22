@@ -3,21 +3,20 @@
 * -*- coding: utf-8 -*-
 *
 * This file is part of pyunicorn.
-* Copyright (C) 2008--2017 Jonathan F. Donges and pyunicorn authors
+* Copyright (C) 2008--2019 Jonathan F. Donges and pyunicorn authors
 * URL: <http://www.pik-potsdam.de/members/donges/software>
 * License: BSD (3-clause)
 */
 
-
 // cross_recurrence_plot ======================================================
 
 void _manhattan_distance_matrix_fast(int ntime_x, int ntime_y, int dim, 
-    double *x_embedded, double *y_embedded, float *distance)  {
+    double *x_embedded, double *y_embedded, double *distance)  {
 
     //  Calculate the manhattan distance matrix
     for (int j = 0; j < ntime_x; j++) {
         for (int k = 0; k < ntime_y; k++) {
-            float sum = 0;
+            double sum = 0;
             for (int l = 0; l < dim; l++) {
                 //  Use manhattan norm
                 sum += fabs(x_embedded[j*ntime_x+l] - y_embedded[k*ntime_y+l]);
@@ -29,15 +28,15 @@ void _manhattan_distance_matrix_fast(int ntime_x, int ntime_y, int dim,
 
 
 void _euclidean_distance_matrix_fast(int ntime_x, int ntime_y, int dim, 
-    double *x_embedded, double *y_embedded, float *distance)  {
+    double *x_embedded, double *y_embedded, double *distance)  {
 
     //  Calculate the euclidean distance matrix
     for (int j = 0; j < ntime_x; j++) {
         for (int k = 0; k < ntime_y; k++) {
-            float sum = 0;
+            double sum = 0;
             for (int l = 0; l < dim; l++) {
                 //  Use euclidean norm
-                float diff = fabs(x_embedded[j*ntime_x+l] - 
+                double diff = fabs(x_embedded[j*ntime_x+l] - 
                     y_embedded[k*ntime_y+l]);
                 sum += diff * diff;
             }

@@ -1,9 +1,18 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of pyunicorn.
-# Copyright (C) 2008--2018 Jonathan F. Donges and pyunicorn authors
+# Copyright (C) 2008--2019 Jonathan F. Donges and pyunicorn authors
 # URL: <http://www.pik-potsdam.de/members/donges/software>
 # License: BSD (3-clause)
+#
+# Please acknowledge and cite the use of this software and its authors
+# when results are used in publications or published elsewhere.
+#
+# You can use the following reference:
+# J.F. Donges, J. Heitzig, B. Beronov, M. Wiedermann, J. Runge, Q.-Y. Feng,
+# L. Tupikina, V. Stolbova, R.V. Donner, N. Marwan, H.A. Dijkstra,
+# and J. Kurths, "Unified functional network and nonlinear time series analysis
+# for complex systems science: The pyunicorn package"
 
 
 cimport cython
@@ -183,7 +192,7 @@ cdef void overwriteAdjacency(
     randomly rewired cross edges of the two considered subnetworks.
     """
     cdef:
-        unsigned int i, j
+        int i, j
         INTTYPE_t n1, n2
 
     for i in range(m):
@@ -255,7 +264,7 @@ def _cross_transitivity(
     np.ndarray[INTTYPE_t, ndim=1] nodes2):
 
     cdef:
-        int m = len(nodes1), n = len(nodes2)
+        unsigned int m = len(nodes1), n = len(nodes2)
         unsigned int i, j, k
         INTTYPE_t n1, n2, n3
         long triangles = 0, triples = 0
@@ -284,7 +293,7 @@ def _nsi_cross_transitivity(
     np.ndarray[FLOATTYPE_t, ndim=1] node_weights):
 
     cdef:
-        int m = len(nodes1), n = len(nodes2)
+        unsigned int m = len(nodes1), n = len(nodes2)
         unsigned int v, p, q
         INTTYPE_t node_v, node_p, node_q
         FLOATTYPE_t weight_v, weight_p, ppv, pqv, T1 = 0, T2 = 0
@@ -315,7 +324,7 @@ def _cross_local_clustering(
     np.ndarray[FLOATTYPE_t, ndim=1] cross_clustering):
 
     cdef:
-        int m = len(nodes1), n = len(nodes2)
+        unsigned int m = len(nodes1), n = len(nodes2)
         unsigned int i, j, k
         INTTYPE_t n1, n2, n3
         long counter
@@ -342,7 +351,7 @@ def _nsi_cross_local_clustering(
     np.ndarray[FLOATTYPE_t, ndim=1] node_weights):
 
     cdef:
-        int m = len(nodes1), n = len(nodes2)
+        unsigned int m = len(nodes1), n = len(nodes2)
         unsigned int v, p, q
         INTTYPE_t node_v, node_p, node_q
         FLOATTYPE_t weight_p
@@ -574,7 +583,7 @@ def _cy_mpi_newman_betweenness(
     """
 
     cdef:
-        unsigned int i_rel, j, s, t, i_abs
+        int i_rel, j, s, t, i_abs
         float sum_s, sum_j, Vis_minus_Vjs
 
         int this_N = end_i - start_i
@@ -608,7 +617,7 @@ def _cy_mpi_nsi_newman_betweenness(
     int end_i):
 
     cdef:
-        unsigned int i_rel, j, s, t, i_abs
+        int i_rel, j, s, t, i_abs
         float sum_s, sum_j, Vis_minus_Vjs
 
         int this_N = end_i - start_i
@@ -900,7 +909,7 @@ def _cy_calculate_angular_distance(
     np.ndarray[FLOAT32TYPE_t, ndim=1] sin_lat,
     np.ndarray[FLOAT32TYPE_t, ndim=1] cos_lon,
     np.ndarray[FLOAT32TYPE_t, ndim=1] sin_lon,
-    np.ndarray[FLOAT32TYPE_t, ndim=2] cosangdist, int N):
+    np.ndarray[FLOAT32TYPE_t, ndim=2] cosangdist, unsigned int N):
 
     cdef:
         FLOAT32TYPE_t expr
@@ -919,9 +928,9 @@ def _cy_calculate_angular_distance(
             cosangdist[i, j] = cosangdist[j, i] = expr
 
 
-def _euclidiean_distance(
+def _euclidean_distance(
     np.ndarray[FLOAT32TYPE_t, ndim=1] x, np.ndarray[FLOAT32TYPE_t, ndim=1] y,
-    np.ndarray[FLOAT32TYPE_t, ndim=2] distance, int N):
+    np.ndarray[FLOAT32TYPE_t, ndim=2] distance, unsigned int N):
 
     cdef:
         unsigned int i,j

@@ -2,9 +2,18 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of pyunicorn.
-# Copyright (C) 2008--2018 Jonathan F. Donges and pyunicorn authors
+# Copyright (C) 2008--2019 Jonathan F. Donges and pyunicorn authors
 # URL: <http://www.pik-potsdam.de/members/donges/software>
 # License: BSD (3-clause)
+#
+# Please acknowledge and cite the use of this software and its authors
+# when results are used in publications or published elsewhere.
+#
+# You can use the following reference:
+# J.F. Donges, J. Heitzig, B. Beronov, M. Wiedermann, J. Runge, Q.-Y. Feng,
+# L. Tupikina, V. Stolbova, R.V. Donner, N. Marwan, H.A. Dijkstra,
+# and J. Kurths, "Unified functional network and nonlinear time series analysis
+# for complex systems science: The pyunicorn package"
 
 """
 Provides classes for analyzing spatially embedded complex networks, handling
@@ -504,7 +513,9 @@ class Surrogates:
         #     methods.
         #  2. Use the algorithm proposed in [*] to find twins
         #  3. Reconstruct one-dimensional twin surrogate time series
+
         (N, n_time) = original_data.shape
+        n_time = n_time - (dimension-1)*delay
 
         #  Make sure that twins are calculated only once
         if self._twins_cached:
@@ -640,7 +651,7 @@ class Surrogates:
 
         correlation_measure = np.abs(test_function(original_data,
                                                    original_data))
-        (hist, lbb) = np.histogram(correlation_measure, n_bins, normed=True)
+        (hist, lbb) = np.histogram(correlation_measure, n_bins, density=True)
         #  Normalize
         hist /= hist.sum()
 

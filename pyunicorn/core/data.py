@@ -2,9 +2,18 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of pyunicorn.
-# Copyright (C) 2008--2018 Jonathan F. Donges and pyunicorn authors
+# Copyright (C) 2008--2019 Jonathan F. Donges and pyunicorn authors
 # URL: <http://www.pik-potsdam.de/members/donges/software>
 # License: BSD (3-clause)
+#
+# Please acknowledge and cite the use of this software and its authors
+# when results are used in publications or published elsewhere.
+#
+# You can use the following reference:
+# J.F. Donges, J. Heitzig, B. Beronov, M. Wiedermann, J. Runge, Q.-Y. Feng,
+# L. Tupikina, V. Stolbova, R.V. Donner, N. Marwan, H.A. Dijkstra,
+# and J. Kurths, "Unified functional network and nonlinear time series analysis
+# for complex systems science: The pyunicorn package"
 
 """
 Provides classes for analyzing spatially embedded complex networks, handling
@@ -278,7 +287,7 @@ class Data:
         time = f.variables[dimension_names["time"]][:].astype("float32")
 
         # Get number of dimensions of data
-        n_dim = np.rank(observable)
+        n_dim = observable.ndim
 
         # Distinguish between regular and irregular grids
         if file_type == "NetCDF":
@@ -385,7 +394,7 @@ class Data:
         for name in f.ncattrs():
             print(name + ":", getattr(f, name))
         print("Variables (size):")
-        for name, obj in f.variables.iteritems():
+        for name, obj in f.variables.items():
             print("%s (%i)" % (name, len(obj)))
         f.close()
 

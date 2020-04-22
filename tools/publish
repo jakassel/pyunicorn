@@ -2,9 +2,18 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of pyunicorn.
-# Copyright (C) 2008--2018 Jonathan F. Donges and pyunicorn authors
+# Copyright (C) 2008--2019 Jonathan F. Donges and pyunicorn authors
 # URL: <http://www.pik-potsdam.de/members/donges/software>
 # License: BSD (3-clause)
+#
+# Please acknowledge and cite the use of this software and its authors
+# when results are used in publications or published elsewhere.
+#
+# You can use the following reference:
+# J.F. Donges, J. Heitzig, B. Beronov, M. Wiedermann, J. Runge, Q.-Y. Feng,
+# L. Tupikina, V. Stolbova, R.V. Donner, N. Marwan, H.A. Dijkstra,
+# and J. Kurths, "Unified functional network and nonlinear time series analysis
+# for complex systems science: The pyunicorn package"
 
 
 # default configuration
@@ -38,7 +47,7 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd $repo
     echo "Destination should be outside of repository." && exit 1
 
 # construct versioned archive name
-version="$(sed -n "s/^.*version='\(.*\)',$/\1/p" setup.py)"
+version="$(sed -n "s/^__version__ = '\([[:digit:]]\..*\)'$/\1/p" setup.py)"
 [[ -z $version ]] && echo "Could not determine package version." && exit 2
 package="pyunicorn-"$version; archive=$package".tar.gz"
 [[ -z $dest ]] && dest="$(cd .. && pwd)"/$archive

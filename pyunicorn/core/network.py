@@ -2,9 +2,18 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of pyunicorn.
-# Copyright (C) 2008--2018 Jonathan F. Donges and pyunicorn authors
+# Copyright (C) 2008--2019 Jonathan F. Donges and pyunicorn authors
 # URL: <http://www.pik-potsdam.de/members/donges/software>
 # License: BSD (3-clause)
+#
+# Please acknowledge and cite the use of this software and its authors
+# when results are used in publications or published elsewhere.
+#
+# You can use the following reference:
+# J.F. Donges, J. Heitzig, B. Beronov, M. Wiedermann, J. Runge, Q.-Y. Feng,
+# L. Tupikina, V. Stolbova, R.V. Donner, N. Marwan, H.A. Dijkstra,
+# and J. Kurths, "Unified functional network and nonlinear time series analysis
+# for complex systems science: The pyunicorn package"
 
 """
 Provides classes for analyzing spatially embedded complex networks, handling
@@ -42,17 +51,11 @@ from ..utils import mpi             # parallelized computations
 
 from ._ext.numerics import _local_cliquishness_4thorder, \
     _local_cliquishness_5thorder, _cy_mpi_nsi_newman_betweenness, \
-    _cy_mpi_newman_betweenness, _nsi_betweenness, _higher_order_transitivity4,\
+    _cy_mpi_newman_betweenness, _nsi_betweenness, \
     _newman_betweenness_badly_cython, _do_nsi_clustering_I, \
     _do_nsi_clustering_II, _do_nsi_hamming_clustering
 
-# Progressbar breaks Network import on python 3.
-# TODO: Use progressbar3?
-if sys.version < '3':
-    has_progressbar = True
-    from ..utils import progressbar     # easy progress bar handling
-else:
-    has_progressbar = False
+from ..utils import progressbar     # easy progress bar handling
 
 
 def nz_coords(matrix):
@@ -125,7 +128,7 @@ class NetworkError(Exception):
 #  Define class Network
 #
 
-class Network(object):
+class Network:
     """
     A Network is a simple, undirected or directed graph with optional node
     and/or link weights. This class encapsulates data structures and methods to
@@ -993,7 +996,7 @@ class Network(object):
         N = n_nodes
         w, A = np.zeros(N, dtype=int), sp.lil_matrix((N, N))
         nbs = [[] for i in range(N)]
-        inc_target = range(n_initials)
+        inc_target = list(range(n_initials))
 
         if nsi:
             kstar = np.zeros(N)
@@ -1011,8 +1014,8 @@ class Network(object):
                     i += 1
                     cum += link_prob[i]
                 return i
-            if has_progressbar:
-                progress = progressbar.ProgressBar(maxval=N).start()
+
+            progress = progressbar.ProgressBar(maxval=N).start()
             for j in range(n_initials, N):
                 # add node j with unit weight:
                 link_prob[j] = kstar[j] = w[j] = 1
@@ -1074,11 +1077,11 @@ class Network(object):
                     link_prob[j2] = w[j2] * kstar[j2]**preferential_exponent
                     total_link_prob += link_prob[i] + link_prob[j2]
                 # print(total_link_prob, link_prob.sum())
-                if (j % 10) == 0 and has_progressbar:
+
+                if j % 10:
                     progress.update(j)
 
-            if has_progressbar:
-                progress.finish()
+            progress.finish()
 
         else:
             link_target = []
@@ -1180,8 +1183,7 @@ class Network(object):
             return i
 
         this_N = n_initials
-        if has_progressbar:
-            progress = progressbar.ProgressBar(maxval=N).start()
+        progress = progressbar.ProgressBar(maxval=N).start()
         it = 0
         while this_N < N and it < n_increases:
             it += 1
@@ -1201,11 +1203,10 @@ class Network(object):
                 inc_prob[i] = w[i]**exponent
                 total_inc_prob += inc_prob[this_N] + inc_prob[i]
                 this_N += 1
-            if (this_N % 10) == 0 and has_progressbar:
+            if this_N % 10:
                 progress.update(this_N)
 
-        if has_progressbar:
-            progress.finish()
+        progress.finish()
         return w
 
     @staticmethod
@@ -1412,7 +1413,7 @@ class Network(object):
         :return: A list of relative bin frequencies, a list of estimated
                  statistical errors, and a list of lower bin boundaries.
         """
-        hist = np.histogram(values, bins=n_bins, range=interval, normed=False)
+        hist = np.histogram(values, bins=n_bins, range=interval, density=False)
         frequencies = hist[0].astype('float64')
         bin_starts = hist[1][:-1]
 
@@ -1689,8 +1690,8 @@ class Network(object):
         if key is None:
             return (self.sp_A * self.sp_A).diagonal()
         else:
-            w = np.matrix(self.link_attribute(key))
-            return (w * w).diagonal()
+            w = self.link_attribute(key)
+            return (w @ w).diagonal()
 
     @cached_var('nsi_degree', 'n.s.i. degree')
     def nsi_degree_uncorr(self, key=None):
@@ -1709,8 +1710,8 @@ class Network(object):
             if key is None:
                 return self.sp_Aplus() * self.node_weights
             else:
-                w = np.matrix(self.link_attribute(key))
-                return (self.node_weights * w).A.squeeze()
+                w = self.link_attribute(key)
+                return (self.node_weights @ w).squeeze()
 
     def sp_nsi_diag_k(self):
         """Sparse diagonal matrix of n.s.i. degrees"""
@@ -1794,8 +1795,8 @@ class Network(object):
         if key is None:
             return self.node_weights * self.sp_Aplus()
         else:
-            w = np.matrix(self.link_attribute(key))
-            return (np.matrix(self.node_weights) * w).A.squeeze()
+            w = self.link_attribute(key)
+            return (self.node_weights @ w).squeeze()
 
     @cached_var('nsi_outdegree')
     def nsi_outdegree(self, key=None):
@@ -1826,8 +1827,8 @@ class Network(object):
         if key is None:
             return self.sp_Aplus() * self.node_weights
         else:
-            w = np.matrix(self.link_attribute(key))
-            return (w * np.matrix(self.node_weights).T).T.A.squeeze()
+            w = self.link_attribute(key)
+            return (w @ self.node_weights.transpose()).transpose().squeeze()
 
     @cached_const('base', 'degree df', 'the degree frequency distribution')
     def degree_distribution(self):
@@ -2440,13 +2441,13 @@ class Network(object):
         if self.silence_level <= 1:
             print("Calculating transitivity of order", order, "...")
 
-        if order == 0 or order == 1 or order == 2:
+        if order in [0, 1, 2]:
             raise NetworkError("Higher order transitivity is not defined for \
                                orders 0, 1 and 2.")
-        elif order == 3:
+        if order == 3:
             return self.transitivity()
 
-        elif order == 4:
+        if order == 4:
             #  Gathering
             # N = self.N
             # A = self.adjacency
@@ -2471,14 +2472,11 @@ class Network(object):
             else:
                 return 0.
 
-        elif order == 5:
-            pass
-
-        elif order > 5:
+        if order > 4:
             raise NotImplementedError("Higher order transitivity is not yet \
-                                      implemented for orders larger than 5.")
-        else:
-            raise ValueError("Order has to be a positive integer.")
+                                      implemented for orders larger than 4.")
+
+        raise ValueError("Order has to be a positive integer.")
 
     def local_cliquishness(self, order):
         """
@@ -2505,26 +2503,26 @@ class Network(object):
         if self.silence_level <= 1:
             print("Calculating local cliquishness of order", order, "...")
 
-        if order == 0 or order == 1 or order == 2:
+        if order in [0, 1, 2]:
             raise NetworkError("Local cliquishness is not defined for orders \
                                0, 1 and 2.")
 
-        elif order == 3:
+        if order == 3:
             return self.local_clustering()
 
-        elif order == 4:
+        if order == 4:
             return _local_cliquishness_4thorder(self.N,
                                                 self.adjacency.astype(int),
                                                 self.degree())
-        elif order == 5:
+        if order == 5:
             return _local_cliquishness_5thorder(self.N,
                                                 self.adjacency.astype(int),
                                                 self.degree())
-        elif order > 5:
+        if order > 5:
             raise NotImplementedError("Local cliquishness is not yet \
                                       implemented for orders larger than 5.")
-        else:
-            raise ValueError("Order has to be a positive integer.")
+
+        raise ValueError("Order has to be a positive integer.")
 
     @staticmethod
     def weighted_local_clustering(weighted_A):
@@ -3017,8 +3015,8 @@ class Network(object):
         A_list = self.graph.get_adjlist()
 
         #  Write link betweenness values to matrix
-        for i in range(len(A_list)):
-            for j in A_list[i]:
+        for i, Ai in enumerate(A_list):
+            for j in Ai:
                 #  Only visit links once
                 if i < j:
                     result[i, j] = result[j, i] = link_betweenness[ecount]
@@ -3078,7 +3076,7 @@ class Network(object):
 
         return np.abs(np.array(self.graph.betweenness(nobigint=no_big_int)))
 
-    @cached_const('base', 'inter btw', 'interregional betweenness')
+    # @cached_const('base', 'inter btw', 'interregional betweenness')
     def interregional_betweenness(self, sources=None, targets=None):
         """
         For each node, return its interregional betweenness for given sets
@@ -3115,7 +3113,7 @@ class Network(object):
         return self.nsi_betweenness(sources=sources, targets=targets,
                                     aw=0, silent=1)
 
-    @cached_const('nsi', 'inter btw', 'n.s.i. interregional betweenness')
+    # @cached_const('nsi', 'inter btw', 'n.s.i. interregional betweenness')
     def nsi_interregional_betweenness(self, sources, targets):
         """
         For each node, return its n.s.i. interregional betweenness for given
@@ -3539,10 +3537,10 @@ class Network(object):
                   + str(components.giant().vcount()
                         / float(self.graph.vcount())) + "))")
 
-        for c in range(len(components)):
+        for c, comp in enumerate(components):
             #  If the component has size 1, set random walk betweenness to zero
-            if len(components[c]) == 1:
-                arenas_betweenness[components[c][0]] = 0
+            if len(comp) == 1:
+                arenas_betweenness[comp[0]] = 0
             #  For larger components, continue with the calculation
             else:
                 #  Get the subgraph corresponding to component i
@@ -3590,12 +3588,12 @@ class Network(object):
                 # component_betweenness *= N
 
                 #  Get the list of vertex numbers in the subgraph
-                nodes = components[c]
+                nodes = comp
 
                 #  Copy results into randomWalkBetweennessArray at the correct
                 #  positions
-                for j in range(len(nodes)):
-                    arenas_betweenness[nodes[j]] = component_betweenness[j]
+                for j, node in enumerate(nodes):
+                    arenas_betweenness[node] = component_betweenness[j]
 
         if self.silence_level <= 0:
             print("...took", time.time()-t0, "seconds")
@@ -3622,10 +3620,10 @@ class Network(object):
                   + str(components.giant().vcount()
                         / float(self.graph.vcount())) + "))")
 
-        for i in range(len(components)):
+        for i, comp in enumerate(components):
             #  If the component has size 1, set random walk betweenness to zero
-            if len(components[i]) == 1:
-                awRandomWalkBetweenness[components[i][0]] = 0
+            if len(comp) == 1:
+                awRandomWalkBetweenness[comp[0]] = 0
             #  For larger components, continue with the calculation
             else:
                 #  Get the subgraph corresponding to component i
@@ -3635,12 +3633,12 @@ class Network(object):
                 adjacency = np.array(subgraph.get_adjacency(type=2).data)
 
                 #  Get the list of vertex numbers in the subgraph
-                vertexList = components[i]
+                vertexList = comp
 
                 # Extract corresponding area weight vector:
                 aw = np.zeros(len(vertexList))
-                for j in range(len(vertexList)):
-                    aw[j] = self.node_weights[vertexList[j]]
+                for j, vs in enumerate(vertexList):
+                    aw[j] = self.node_weights[vs]
 
                 #  Generate a Network object representing the subgraph
                 subnetwork = Network(adjacency, directed=False)
@@ -3680,8 +3678,8 @@ class Network(object):
 
                 #  Copy results into randomWalkBetweennessArray at the correct
                 #  positions
-                for j in range(len(vertexList)):
-                    awRandomWalkBetweenness[vertexList[j]] = rwb[j]
+                for j, vs in enumerate(vertexList):
+                    awRandomWalkBetweenness[vs] = rwb[j]
 
         if self.silence_level <= 1:
             print("...took", time.time()-t0, "seconds")
@@ -3709,7 +3707,8 @@ class Network(object):
                                    for k in update_keys]
                 else:  # "neighbors"
                     update_vals = np.zeros(len(update_keys))
-                sp_Pi.update(zip(update_keys, update_vals))
+                update_rows, update_cols = zip(*update_keys)
+                sp_Pi[update_rows, update_cols] = update_vals
                 sp_Pi = sp_Pi.tocsc()
                 sp_Pi.eliminate_zeros()
 
@@ -3807,10 +3806,10 @@ class Network(object):
                   + str(components.giant().vcount()
                         / float(self.graph.vcount())) + "))")
 
-        for c in range(len(components)):
+        for c, comp in enumerate(components):
             #  If the component has size 1, set random walk betweenness to zero
-            if len(components[c]) == 1:
-                nsi_arenas_betweenness[components[c][0]] = 0
+            if len(comp) == 1:
+                nsi_arenas_betweenness[comp[0]] = 0
             #  For larger components, continue with the calculation
             else:
                 #  Get the subgraph corresponding to component i
@@ -3819,12 +3818,12 @@ class Network(object):
                 del subgraph
 
                 #  Get the list of vertex numbers in the subgraph
-                nodes = components[c]
+                nodes = comp
 
                 # Extract corresponding area weight vector
                 w = np.zeros(len(nodes))
-                for j in range(len(nodes)):
-                    w[j] = self.node_weights[nodes[j]]
+                for j, node in enumerate(nodes):
+                    w[j] = self.node_weights[node]
 
                 #  Generate a Network object representing the subgraph
                 subnet = Network(adjacency=A, directed=False, node_weights=w)
@@ -3911,8 +3910,8 @@ class Network(object):
 
                 #  Copy results into randomWalkBetweennessArray at the correct
                 #  positions
-                for j in range(len(nodes)):
-                    nsi_arenas_betweenness[nodes[j]] = component_betweenness[j]
+                for j, node in enumerate(nodes):
+                    nsi_arenas_betweenness[node] = component_betweenness[j]
 
         if self.silence_level <= 0:
             print("...took", time.time()-t0, "seconds")
@@ -3931,10 +3930,10 @@ class Network(object):
         #  separately. Therefore get different components of the graph first
         components = self.graph.clusters()
 
-        for i in range(len(components)):
+        for i, comp in enumerate(components):
             #  If the component has size 1, set random walk betweenness to zero
-            if len(components[i]) == 1:
-                randomWalkBetweenness[components[i][0]] = 0
+            if len(comp) == 1:
+                randomWalkBetweenness[comp[0]] = 0
             #  For larger components, continue with the calculation
             else:
                 #  Get the subgraph corresponding to component i
@@ -3985,12 +3984,12 @@ class Network(object):
                 rwb *= nNodes
 
                 #  Get the list of vertex numbers in the subgraph
-                vertexList = components[i]
+                vertexList = comp
 
                 #  Copy results into randomWalkBetweennessArray at the correct
                 #  positions
-                for j in range(len(vertexList)):
-                    randomWalkBetweenness[vertexList[j]] = rwb[j]
+                for j, vs in enumerate(vertexList):
+                    randomWalkBetweenness[vs] = rwb[j]
 
         return randomWalkBetweenness
 
@@ -4030,10 +4029,10 @@ class Network(object):
                   + str(components.giant().vcount()
                         / float(self.graph.vcount())) + "))")
 
-        for c in range(len(components)):
+        for c, comp in enumerate(components):
             #  If the component has size 1, set random walk betweenness to zero
-            if len(components[c]) < 2:
-                newman_betweenness[components[c][0]] = 0
+            if len(comp) < 2:
+                newman_betweenness[comp[0]] = 0
             #  For larger components, continue with the calculation
             else:
                 #  Get the subgraph A matrix corresponding to component c
@@ -4107,9 +4106,9 @@ class Network(object):
                 component_betweenness /= (N - 1.0)  # TODO: why is this?
 
                 # sort results into correct positions
-                nodes = components[c]
-                for j in range(len(nodes)):
-                    newman_betweenness[nodes[j]] = component_betweenness[j]
+                nodes = comp
+                for j, node in enumerate(nodes):
+                    newman_betweenness[node] = component_betweenness[j]
 
         if self.silence_level <= 0:
             print("...took", time.time()-t0, "seconds")
@@ -4191,11 +4190,11 @@ class Network(object):
                   + str(components.giant().vcount()
                         / float(self.graph.vcount())) + "))")
 
-        for c in range(len(components)):
+        for c, comp in enumerate(components):
             #  If the component has size 1, set random walk betweenness to zero
             # FIXME: check why there was a problem with ==1
-            if len(components[c]) < 2:
-                nsi_newman_betweenness[components[c][0]] = 0
+            if len(comp) < 2:
+                nsi_newman_betweenness[comp[0]] = 0
             #  For larger components, continue with the calculation
             else:
                 #  Get the subgraph corresponding to component i
@@ -4206,12 +4205,12 @@ class Network(object):
                              dtype=np.int8)
 
                 #  Get the list of vertex numbers in the subgraph
-                nodes = components[c]
+                nodes = comp
 
                 # Extract corresponding area weight vector:
                 w = np.zeros(len(nodes))
-                for j in range(len(nodes)):
-                    w[j] = self.node_weights[nodes[j]]
+                for j, node in enumerate(nodes):
+                    w[j] = self.node_weights[node]
 
                 #  Generate a Network object representing the subgraph
                 subnet = Network(adjacency=A, directed=False, node_weights=w)
@@ -4287,8 +4286,8 @@ class Network(object):
 
                 #  Copy results into randomWalkBetweennessArray at the correct
                 #  positions
-                for j in range(len(nodes)):
-                    nsi_newman_betweenness[nodes[j]] = component_betweenness[j]
+                for j, node in enumerate(nodes):
+                    nsi_newman_betweenness[node] = component_betweenness[j]
 
         if self.silence_level <= 0:
             print("...took", time.time()-t0, "seconds")
@@ -4455,13 +4454,13 @@ class Network(object):
             print("Calculating (weighted) node vulnerabilities...")
 
         #  Initialize progress bar
-        if self.silence_level <= 1 and has_progressbar:
+        if self.silence_level <= 1:
             progress = progressbar.ProgressBar(maxval=self.N).start()
 
         for i in range(self.N):
-            #  Update progress bar every 10 steps
+            # Update progress bar every 10 steps
             if self.silence_level <= 1:
-                if (i % 10) == 0 and has_progressbar:
+                if (i % 10) == 0:
                     progress.update(i)
 
             #  Remove vertex i from graph
@@ -4482,7 +4481,7 @@ class Network(object):
             del graph, network
 
         #  Terminate progress bar
-        if self.silence_level <= 1 and has_progressbar:
+        if self.silence_level <= 1:
             progress.finish()
 
         return vulnerability
@@ -4610,7 +4609,7 @@ class Network(object):
         """
         if alpha is None:
             alpha = 1.0 / self.degree().mean()
-        return matfuncs.expm2(
+        return matfuncs.expm(
             np.log(2.0) * (alpha * self.adjacency
                            - np.identity(self.N))).sum(axis=0).flatten()
 
@@ -4628,8 +4627,9 @@ class Network(object):
         if alpha is None:
             alpha = self.total_node_weight / k.dot(w)
         # print(alpha)
-        return (matfuncs.expm2(
-            np.log(2.0)*(Aplus * alpha * w - sp.identity(N))).dot(Aplus)
+        return (
+            matfuncs.expm(
+                np.log(2.0)*(Aplus * alpha * w - sp.identity(N))).dot(Aplus)
             * w.reshape((N, 1))).sum(axis=0)
 
     def do_nsi_pca_clustering(self, max_n_clusters=None):
@@ -4776,7 +4776,7 @@ class Network(object):
         children[:N] = -1
         sibling = np.zeros(N2-1, dtype=np.int16) - 1
         parent = np.zeros(N2-1, dtype=np.int16) - 1
-        clid = range(N)
+        clid = np.arange(N)
 
         # a dynamic doubly linked list of distance matrix entries:
         #  D_firstpos[cl] = pos. of first nb. of cl.
@@ -4800,11 +4800,8 @@ class Network(object):
         M = len(distance_keys)
         rM = range(M)
         rpos = range(1, M+1)
-        """
-        if M < 65535:
-            postype = "int16"
-        else:
-        """
+        # if M < 65535:
+        #     postype = "int16"
         postype = "int32"
         D_firstpos = np.zeros(N, postype)  # pos. of first nb. of cl.
         D_lastpos = np.zeros(N, postype)  # pos. of last nb. of cl.
@@ -4918,7 +4915,7 @@ class Network(object):
             # find best pair a<b:
             t0 = time.time()
             vals = dict_Delta.values()
-            if len(vals) == 0:
+            if not vals:
                 min_clusters = n_clusters + 1
                 break
             minpos = np.argmin(vals)
@@ -5184,13 +5181,13 @@ class Network(object):
             result = np.zeros(3)
 
             results = _do_nsi_hamming_clustering(
-                    n2, nActiveIndices, mind0, minwp0, lastunited, part1,
-                    part2, distances.copy(mode='c'),
-                    theActiveIndices.copy(mode='c'),
-                    linkedWeights.copy(mode='c'),
-                    weightProducts.copy(mode='c'),
-                    errors.copy(mode='c'), result.copy(mode='c'),
-                    mayJoin.copy(mode='c'))
+                n2, nActiveIndices, mind0, minwp0, lastunited, part1,
+                part2, distances.copy(mode='c'),
+                theActiveIndices.copy(mode='c'),
+                linkedWeights.copy(mode='c'),
+                weightProducts.copy(mode='c'),
+                errors.copy(mode='c'), result.copy(mode='c'),
+                mayJoin.copy(mode='c'))
 
             mind = result[0]
             part1 = int(result[1])

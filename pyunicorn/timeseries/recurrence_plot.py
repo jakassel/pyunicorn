@@ -2,9 +2,18 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of pyunicorn.
-# Copyright (C) 2008--2018 Jonathan F. Donges and pyunicorn authors
+# Copyright (C) 2008--2019 Jonathan F. Donges and pyunicorn authors
 # URL: <http://www.pik-potsdam.de/members/donges/software>
 # License: BSD (3-clause)
+#
+# Please acknowledge and cite the use of this software and its authors
+# when results are used in publications or published elsewhere.
+#
+# You can use the following reference:
+# J.F. Donges, J. Heitzig, B. Beronov, M. Wiedermann, J. Runge, Q.-Y. Feng,
+# L. Tupikina, V. Stolbova, R.V. Donner, N. Marwan, H.A. Dijkstra,
+# and J. Kurths, "Unified functional network and nonlinear time series analysis
+# for complex systems science: The pyunicorn package"
 
 """
 Provides classes for the analysis of dynamical systems and time series based
@@ -143,6 +152,9 @@ class RecurrencePlot:
         self.metric = metric
         """The metric used for measuring distances in phase space."""
 
+        # minimal denominator for numerical stability
+        self._epsilon = 1e-08
+
         #  Normalize time series
         if normalize:
             self.normalize_time_series(self.time_series)
@@ -270,6 +282,7 @@ class RecurrencePlot:
         :rtype: 2D square array
         :return: the phase space distance matrix :math:`D`
         """
+
         if not self._distance_matrix_cached:
             #  Return distance matrix according to chosen metric:
             if metric == "manhattan":
@@ -420,6 +433,10 @@ class RecurrencePlot:
 
         n_time = time_series.shape[0]
         embedding = np.empty((n_time - (dim - 1) * tau, dim), dtype="float32")
+
+        # Reshape time series if it is one dimensional
+        if time_series.ndim == 1:
+            time_series.shape = (time_series.shape[0], -1)
 
         _embed_time_series(n_time, dim, tau, time_series, embedding)
         return embedding
@@ -980,7 +997,7 @@ class RecurrencePlot:
         #  the main diagonal)
         full_sum = (np.arange(n_time) * diagline).sum()
 
-        return partial_sum / float(full_sum)
+        return partial_sum / float(full_sum + self._epsilon)
 
     def average_diaglength(self, l_min=2, resampled_dist=None):
         """
@@ -1010,7 +1027,7 @@ class RecurrencePlot:
         #  Total number of diagonal lines of at least length l_min
         number_diagline = diagline[l_min:].sum()
 
-        return partial_sum / float(number_diagline)
+        return partial_sum / float(number_diagline + self._epsilon)
 
     def diag_entropy(self, l_min=2, resampled_dist=None):
         """
@@ -1039,7 +1056,7 @@ class RecurrencePlot:
 
         #  Normalized array of the number of all diagonal lines = probability
         #  of diagonal line length
-        diagnorm = diagline / float(diagline.sum())
+        diagnorm = diagline / float(diagline.sum() + self._epsilon)
 
         return -(diagnorm * np.log(diagnorm)).sum()
 
@@ -1179,7 +1196,7 @@ class RecurrencePlot:
         #  Number of all recurrence points that form vertical lines
         full_sum = (np.arange(n_time) * vertline).sum()
 
-        return partial_sum / float(full_sum)
+        return partial_sum / float(full_sum + self._epsilon)
 
     def average_vertlength(self, v_min=2, resampled_dist=None):
         """
@@ -1210,7 +1227,7 @@ class RecurrencePlot:
         #  Total number of vertical lines of at least length v_min
         number_vertline = vertline[v_min:].sum()
 
-        return partial_sum / float(number_vertline)
+        return partial_sum / (float(number_vertline) + self._epsilon)
 
     def trapping_time(self, v_min=2, resampled_dist=None):
         """
@@ -1245,7 +1262,7 @@ class RecurrencePlot:
 
         #  Normalized array of the number of all vertical lines = probability
         #  of vertical line length
-        vertline_normed = vertline / float(vertline.sum())
+        vertline_normed = vertline / float(vertline.sum() + self._epsilon)
 
         return -(vertline_normed * np.log(vertline_normed)).sum()
 
@@ -1323,7 +1340,7 @@ class RecurrencePlot:
         #  Total number of white vertical lines of at least length v_min
         number_white_vertline = white_vertline[w_min:].sum()
 
-        return partial_sum / float(number_white_vertline)
+        return partial_sum / float(number_white_vertline + self._epsilon)
 
     def mean_recurrence_time(self, w_min=1):
         """
@@ -1351,7 +1368,8 @@ class RecurrencePlot:
 
         #  Normalized array of the number of all vertical lines = probability
         #  of vertical line length
-        white_vertline_normed = white_vertline / float(white_vertline.sum())
+        white_vertline_normed = white_vertline / float(
+            white_vertline.sum() + self._epsilon)
 
         return -(white_vertline_normed * np.log(white_vertline_normed)).sum()
 
