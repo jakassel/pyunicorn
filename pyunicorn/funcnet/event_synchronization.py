@@ -69,7 +69,7 @@ class EventSynchronization:
         variable is identical.
 
         :type eventmatrix: 2D Numpy array [time, variables]
-        :arg evenmatrix: Event series array
+        :arg eventmatrix: Event series array
         :arg int taumax: Maximum dynamical delay
         """
 
