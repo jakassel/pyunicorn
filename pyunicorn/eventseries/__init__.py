@@ -34,3 +34,5 @@ Known Bugs
   - ...
 
 """
+
+from .event_series import EventSeries

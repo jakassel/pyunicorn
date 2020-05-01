@@ -16,7 +16,8 @@
 # for complex systems science: The pyunicorn package"
 
 """
-Provides class for event series analysis, namely event synchronization and event coincidence analysis.
+Provides class for event series analysis, namely event synchronization and event
+coincidence analysis.
 
 """
 
@@ -28,8 +29,63 @@ import numpy as np
 
 from .. import cached_const
 
+import warnings
+
 
 class EventSeries:
+
+
+    def __init__(self, eventmatrix, taumax):
+        """
+        Initialize an instance of EventSeries.
+
+        Format of eventmatrix:
+        An eventmatrix is a 2D numpy array with the first dimension covering
+        the timesteps and the second dimensions covering the variables. Each
+        variable at a specific timestep is either '1' if an event occured or
+        '0' if it did not, e.g. for 3 variables with 10 timesteps the
+        eventmatrix could look like
+
+            array([[0, 1, 0],
+                   [0, 0, 0],
+                   [0, 0, 0],
+                   [1, 0, 1],
+                   [0, 1, 0],
+                   [0, 0, 0],
+                   [0, 0, 0],
+                   [0, 0, 0],
+                   [0, 1, 0],
+                   [0, 0, 0]])
+
+        Important note!!!
+        Due to normalization issues the event synchronization matrices should
+        only be used if the number of events (i.e the number 1s) in each
+        variable is identical.
+
+        :type eventmatrix: 2D Numpy array [time, variables]
+        :arg eventmatrix: Event series array
+        :arg int taumax: Maximum dynamical delay
+        """
+
+        self.__T = eventmatrix.shape[0]
+        self.__N = eventmatrix.shape[1]
+        self.__eventmatrix = eventmatrix
+        self.taumax = taumax
+
+        # Dictionary for chached constants
+        self.cache = {'base': {}}
+        """(dict) cache of re-usable computation results"""
+
+        # Check for right input format
+        if len(np.unique(eventmatrix)) != 2 or not (
+                np.unique(eventmatrix) == np.array([0, 1])).all():
+            raise ValueError("Eventmatrix not in correct format")
+
+        # Print warning if number of events is not identical for all variables
+        NrOfEvs = np.sum(eventmatrix, axis=0)
+        if not (NrOfEvs == NrOfEvs[0]).all():
+            warnings.warn("Data does not contain equal number of events")
+
 
     @staticmethod
     def _eventsync(EventSeriesX, EventSeriesY, taumax=None, taulag=0):
@@ -45,8 +101,8 @@ class EventSeries:
         :return: [Event synchronization XY, Event synchronization YX]
         """
 
-        if taumax == None:
-            taumax = np.infty
+        if taumax is None:
+            taumax = np.inf
 
         # Get time indices (type boolean or simple '0's and '1's)
         ex = np.array(np.where(EventSeriesX), dtype=np.int8)
