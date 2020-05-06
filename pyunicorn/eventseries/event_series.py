@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of pyunicorn.
-# Copyright (C) 2008--2019 Jonathan F. Donges and pyunicorn authors
+# Copyright (C) 2008--2020 Jonathan F. Donges and pyunicorn authors
 # URL: <http://www.pik-potsdam.de/members/donges/software>
 # License: BSD (3-clause)
 #
@@ -17,7 +17,10 @@
 
 """
 Provides class for event series analysis, namely event synchronization and event
-coincidence analysis.
+coincidence analysis. The data format event matrix has to be passed in order to
+instantiate an object of the class which may contain an arbitray number of event
+series. However, the methods event synchronization and event coincidence analysis
+may be called without instantiating an object of the class.
 
 """
 
@@ -34,8 +37,7 @@ import warnings
 
 class EventSeries:
 
-
-    def __init__(self, eventmatrix, taumax):
+    def __init__(self, eventmatrix):
         """
         Initialize an instance of EventSeries.
 
@@ -64,13 +66,11 @@ class EventSeries:
 
         :type eventmatrix: 2D Numpy array [time, variables]
         :arg eventmatrix: Event series array
-        :arg int taumax: Maximum dynamical delay
         """
 
         self.__T = eventmatrix.shape[0]
         self.__N = eventmatrix.shape[1]
         self.__eventmatrix = eventmatrix
-        self.taumax = taumax
 
         # Dictionary for chached constants
         self.cache = {'base': {}}
@@ -86,131 +86,167 @@ class EventSeries:
         if not (NrOfEvs == NrOfEvs[0]).all():
             warnings.warn("Data does not contain equal number of events")
 
+    def __str__(self):
+        """
+        Return a string representation of the EventSeries object.
+        """
+        return ('EventSynchronization: %i variables, %i timesteps'
+                % (self.__N, self.__T))
 
     @staticmethod
-    def _eventsync(EventSeriesX, EventSeriesY, taumax=None, taulag=0):
+    def event_sync(eventseriesx, eventseriesy, ts1=None, ts2=None, taumax=np.inf, step=0, windowsize=0):
         """
         Calculates the directed event synchronization from two event series X
         and Y.
 
-        :type EventSeriesX: 1D Numpy array
-        :arg EventSeriesX: Event series containing '0's and '1's
-        :type EventSeriesY: 1D Numpy array
-        :arg EventSeriesY: Event series containing '0's and '1's
+        :type eventseriesx: 1D Numpy array
+        :arg eventseriesx: Event series containing '0's and '1's
+        :type eventseriesy: 1D Numpy array
+        :arg eventseriesy: Event series containing '0's and '1's
+        :type ts1: 1D Numpy array
+        :arg ts1: Event time array containing time points when events of event series 1 occur, not obligatory
+        :type ts2: 1D Numpy array
+        :arg ts2: Event time array containing time points when events of event series 2 occur, not obligatory
+        :type taumax:
+        :arg taumax: maximum distance of two events to be counted as synchronous
+        :type step:
+        :arg step:
+        :type windowsize:
+        :arg windowsize:
         :rtype: list
         :return: [Event synchronization XY, Event synchronization YX]
         """
-
-        if taumax is None:
-            taumax = np.inf
-
-        # Get time indices (type boolean or simple '0's and '1's)
-        ex = np.array(np.where(EventSeriesX), dtype=np.int8)
-        ey = np.array(np.where(EventSeriesY), dtype=np.int8)
-        # Number of events
-        lx = ex.shape[1]
-        ly = ey.shape[1]
-        if lx == 0 or ly == 0:              # Division by zero in output
-            return np.nan, np.nan
-        if lx in [1, 2] or ly in [1, 2]:    # Too few events to calculate
-            return 0., 0.
-        # Array of distances
-        dstxy2 = 2 * (np.repeat(ex[:, 1:-1].T, ly-2, axis=1)
-                      - np.repeat(ey[:, 1:-1], lx-2, axis=0))
-        # Dynamical delay
-        diffx = np.diff(ex)
-        diffy = np.diff(ey)
-        diffxmin = np.minimum(diffx[:, 1:], diffx[:, :-1])
-        diffymin = np.minimum(diffy[:, 1:], diffy[:, :-1])
-        tau2 = np.minimum(np.repeat(diffxmin.T, ly-2, axis=1),
-                          np.repeat(diffymin, lx-2, axis=0))
-        tau2 = np.minimum(tau2, 2 * taumax)
-        # Count equal time events and synchronised events
-        eqtime = dstxy2.size - np.count_nonzero(dstxy2)
-
-        # Calculate boolean matrices of coincidences
-        Axy = (dstxy2 > 0) * (dstxy2 <= tau2)
-        Ayx = (dstxy2 < 0) * (dstxy2 >= -tau2)
-
-        # Loop over coincidences and determine number of double counts
-        # by checking at least one event of the pair is also coincided
-        # in other direction
-        countxydouble = countyxdouble = 0
-
-        for i, j in np.transpose(np.where(Axy)):
-            countxydouble += np.any(Ayx[i, :]) or np.any(Ayx[:, j])
-        for i, j in np.transpose(np.where(Ayx)):
-            countyxdouble += np.any(Axy[i, :]) or np.any(Axy[:, j])
-
-        # Calculate counting quantities and subtract half of double countings
-        countxy = np.sum(Axy) + 0.5 * eqtime - 0.5 * countxydouble
-        countyx = np.sum(Ayx) + 0.5 * eqtime - 0.5 * countyxdouble
-
-        norm = np.sqrt((lx-2) * (ly-2))
-        return countxy / norm, countyx / norm
-
-
-    @staticmethod
-    def _eca(EventSeriesX, EventSeriesY, delT, tau=0, ts1=None, ts2=None):
-        """
-        Event coincidence analysis:
-        Returns the precursor and trigger coincidence rates of two event series
-        X and Y.
-
-        :type EventSeriesX: 1D Numpy array
-        :arg EventSeriesX: Event series containing '0's and '1's
-        :type EventSeriesY: 1D Numpy array
-        :arg EventSeriesY: Event series containing '0's and '1's
-        :arg delT: coincidence interval width
-        :arg int tau: lag parameter
-        :rtype: list
-        :return: [Precursor coincidence rate XY, Trigger coincidence rate XY,
-              Precursor coincidence rate YX, Trigger coincidence rate YX]
-        """
-
-        # Count events that cannot be coincided due to tau and delT
-        if not (tau == 0 and delT == 0):
-            # Start of EventSeriesX
-            n11 = np.count_nonzero(EventSeriesX[:tau + delT])
-            # End of EventSeriesX
-            n12 = np.count_nonzero(EventSeriesX[-(tau + delT):])
-            # Start of EventSeriesY
-            n21 = np.count_nonzero(EventSeriesY[:tau + delT])
-            # End of EventSeriesY
-            n22 = np.count_nonzero(EventSeriesY[-(tau + delT):])
-        else:
-            # Instantaneous coincidence
-            n11, n12, n21, n22 = 0, 0, 0, 0
         # Get time indices
         if ts1 is None:
-            e1 = np.where(EventSeriesX)[0]
+            e1 = np.where(eventseriesx)[0]
         else:
-            e1 = ts1[EventSeriesX]
+            e1 = ts1[eventseriesx]
         if ts2 is None:
-            e2 = np.where(EventSeriesY)[0]
+            e2 = np.where(eventseriesy)[0]
         else:
-            e2 = ts2[EventSeriesY]
-        del EventSeriesX, EventSeriesY, ts1, ts2
+            e2 = ts2[eventseriesy]
+        # del es1, es2, ts1 , ts2
+        # Number of events
+        l1 = len(e1)
+        l2 = len(e2)
+        if l1 == 0 or l2 == 0:  # Division by zero in output
+            return np.nan, np.nan
+        if l1 in [1, 2] or l2 in [1, 2]:  # Too few events to calculate
+            return 0., 0.
+
+
+        dst12 = (np.array([e1[1:-1]] * (l2 - 2), dtype='int32').T - np.array([e2[1:-1]] * (l1 - 2), dtype='int32'))
+        # Dynamical delay
+        diff1 = np.diff(e1)
+        diff2 = np.diff(e2)
+        diff1min = np.minimum(diff1[1:], diff1[:-1])
+        diff2min = np.minimum(diff2[1:], diff2[:-1])
+        tau = 0.5 * np.minimum(np.array([diff1min] * (l2 - 2), dtype='float32').T,
+                               np.array([diff2min] * (l1 - 2), dtype='float32'))
+        efftau = np.minimum(tau, taumax)
+        # del diff1 , diff2 , diff1min, diff2min, tau
+        # Count equal time events and synchronised events
+        eqtime = 0.5 * np.sum(dst12 == 0)
+        count12 = np.sum((dst12 > 0) * (dst12 <= efftau)) + eqtime
+        count21 = np.sum((dst12 < 0) * (-dst12 <= efftau)) + eqtime
+        norm = np.sqrt((l1 - 2) * (l2 - 2))
+        # del dst12
+        return np.float32(count12 / norm), np.float32(count21 / norm)
+
+    @cached_const('base', 'directedES')
+    def directed_event_sync(self, ):
+        """
+        Returns the NxN matrix of the directed event synchronization measure.
+        The entry [i, j] denotes the directed event synchronization from
+        variable j to variable i.
+        """
+        eventmatrix = self.__eventmatrix
+        res = np.ones((self.__N, self.__N)) * np.inf
+
+        for i in range(0, self.__N):
+            for j in range(i+1, self.__N):
+                res[i, j], res[j, i] = self.eventSync(eventmatrix[:, i],
+                                                       eventmatrix[:, j], )
+        return res
+
+    def symmetric_event_sync(self):
+        """
+        Returns the NxN matrix of the undirected or symmetrix event
+        synchronization measure. It is obtained by the sum of both directed
+        versions.
+        """
+        directed = self.directed_event_sync()
+        return directed + directed.T
+
+    def antisymmetric_event_sync(self):
+        """
+        Returns the NxN matrix of the antisymmetric synchronization measure.
+        It is obtained by the difference of both directed versions.
+        """
+        directed = self.directedES()
+        return directed - directed.T
+
+    @staticmethod
+    def event_coincidence_analysis(eventseriesx, eventseriesy, ts1=None, ts2=None, tau=0, delT=3, step=0, windowsize=0):
+        """
+         Event coincidence analysis:
+         Returns the precursor and trigger coincidence rates of two event series
+         X and Y.
+
+         :type eventseriesx: 1D Numpy array
+         :arg eventseriesx: Event series containing '0's and '1's
+         :type eventseriesy: 1D Numpy array
+         :arg eventseriesy: Event series containing '0's and '1's
+         :arg delT: coincidence interval width
+         :arg int tau: lag parameter
+         :type ts1: 1D Numpy array
+         :arg ts1: Event time array containing time points when events of event series 1 occur, not obligatory
+         :type ts2: 1D Numpy array
+         :arg ts2: Event time array containing time points when events of event series 2 occur, not obligatory
+         :type step:
+         :arg step:
+         :type windowsize:
+         :arg windowsize:
+         :rtype list
+         :return [Precursor coincidence rate XY, Trigger coincidence rate XY,
+               Precursor coincidence rate YX, Trigger coincidence rate YX]
+         """
+        # Count events that cannot be coincided due to tau and delT
+        if not (tau == 0 and delT == 0):
+            n11 = np.count_nonzero(eventseriesx[:tau + delT])  # Start of es1
+            n12 = np.count_nonzero(eventseriesx[-(tau + delT):])  # End of es1
+            n21 = np.count_nonzero(eventseriesy[:tau + delT])  # Start of es2
+            n22 = np.count_nonzero(eventseriesy[-(tau + delT):])  # End of es2
+        else:
+            n11, n12, n21, n22 = 0, 0, 0, 0  # Instantaneous coincidence
+        # Get time indices
+        if ts1 is None:
+            e1 = np.where(eventseriesx)[0]
+        else:
+            e1 = ts1[eventseriesx]
+        if ts2 is None:
+            e2 = np.where(eventseriesy)[0]
+        else:
+            e2 = ts2[eventseriesy]
+        # del es1, es2, ts1, ts2
+
         # Number of events
         l1 = len(e1)
         l2 = len(e2)
         # Array of all interevent distances
         dst = (np.array([e1] * l2).T - np.array([e2] * l1))
+        # print "shape of interevent distances matrix:", dst.shape
         # Count coincidences with array slicing
-        prec12 = np.count_nonzero(np.any(((dst - tau >= 0)
-                                          * (dst - tau <= delT))[n11:, :],
-                                         axis=1))
-        trig12 = np.count_nonzero(np.any(((dst - tau >= 0)
-                                          * (dst - tau <= delT))
-                                         [:, :dst.shape[1] - n22],
-                                         axis=0))
-        prec21 = np.count_nonzero(np.any(((-dst - tau >= 0)
-                                          * (-dst - tau <= delT))[:, n21:],
-                                         axis=0))
-        trig21 = np.count_nonzero(np.any(((-dst - tau >= 0)
-                                          * (-dst - tau <= delT))
-                                         [:dst.shape[0] - n12, :],
-                                         axis=1))
+        # print dst - tau > 0# , (dst - tau <= delT)
+        prec12 = np.count_nonzero(
+            np.any(((dst - tau >= 0) * (dst - tau <= delT))[n11:, :], axis=1))  # CHECK [n11:,:] = [n11:,] = [n11:] ??
+        trig12 = np.count_nonzero(np.any(((dst - tau >= 0) *
+                                          (dst - tau <= delT))[:, :dst.shape[1] - n22], axis=0))
+        prec21 = np.count_nonzero(np.any(((-dst - tau >= 0) *
+                                          (-dst - tau <= delT))[:, n21:], axis=0))
+        trig21 = np.count_nonzero(np.any(((-dst - tau >= 0) *
+                                          (-dst - tau <= delT))[:dst.shape[0] - n12, :], axis=1))
         # Normalisation and output
-        return (np.float32(prec12) / (l1 - n11), np.float32(trig12) / (l2 - n22),
-                np.float32(prec21) / (l2 - n21), np.float32(trig21) / (l1 - n12))
+        del dst
+        return (np.float32(prec12) / (l1 - n11), np.float32(trig12) / (l2 - n22), np.float32(prec21) / (l2 - n21),
+                np.float32(trig21) / (l1 - n12))
