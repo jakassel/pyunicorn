@@ -20,8 +20,7 @@ Provides class for event series analysis, namely event synchronization and event
 coincidence analysis. The data format event matrix has to be passed in order to
 instantiate an object of the class which may contain an arbitray number of event
 series. However, the methods event synchronization and event coincidence analysis
-may be called without instantiating an object of the class.
-
+may be called without instantiating an object of the class. Significance Tests
 """
 
 #
@@ -30,6 +29,8 @@ may be called without instantiating an object of the class.
 
 import numpy as np
 
+import scipy as sc
+
 from .. import cached_const
 
 import warnings
@@ -37,7 +38,7 @@ import warnings
 
 class EventSeries:
 
-    def __init__(self, eventmatrix):
+    def __init__(self, data, threshold_method=None, event_type='above', quantile = 0.5):
         """
         Initialize an instance of EventSeries.
 
@@ -68,6 +69,25 @@ class EventSeries:
         :arg eventmatrix: Event series array
         """
 
+        if threshold_method is None:
+            # check if data contains only binary values
+            if ((data == 1) | (data==0)).all():
+                # Convert binary data to array of event time points
+                self.__N = data.shape[1]
+                self.__eventseries = []
+                for i in range(self.__N):
+                    self.__eventseries.append(np.where(data[:, i])[0])
+            else:
+                self.__eventseries = data
+
+        elif threshold_method is 'quantile':
+            if quantile > 1.0 or quantile < 0.0:
+                raise ValueError('quantile must lie between 0.0 and 1.0!')
+
+            if event_type not in ['above', 'below']:
+                raise ValueError('quantile_option must be \'above\' or \'below\'!')
+
+
         self.__T = eventmatrix.shape[0]
         self.__N = eventmatrix.shape[1]
         self.__eventmatrix = eventmatrix
@@ -93,8 +113,21 @@ class EventSeries:
         return ('EventSynchronization: %i variables, %i timesteps'
                 % (self.__N, self.__T))
 
+    def make_event_series(self, data, quantile=0.5, quantile_option='above', value=None):
+        # TODO THINK ABOUT GOOD WAY OF ORGANIZING KEYWORD ARGUMENTS
+        self.__eventseries = np.zeros(len(data),0)
+        # Iterate through all variable of the data and create
+        for i in range(len(data)):
+            for
+
+
+
+        return 0
+
+
+
     @staticmethod
-    def event_sync(eventseriesx, eventseriesy, ts1=None, ts2=None, taumax=np.inf, step=0, windowsize=0):
+    def event_sync(eventseriesx, eventseriesy, ts1=None, ts2=None, delta_max=np.inf, step=0, windowsize=0):
         """
         Calculates the directed event synchronization from two event series X
         and Y.
@@ -107,8 +140,8 @@ class EventSeries:
         :arg ts1: Event time array containing time points when events of event series 1 occur, not obligatory
         :type ts2: 1D Numpy array
         :arg ts2: Event time array containing time points when events of event series 2 occur, not obligatory
-        :type taumax:
-        :arg taumax: maximum distance of two events to be counted as synchronous
+        :type delta_max:
+        :arg delta_max: maximum distance of two events to be counted as synchronous
         :type step:
         :arg step:
         :type windowsize:
@@ -143,7 +176,7 @@ class EventSeries:
         diff2min = np.minimum(diff2[1:], diff2[:-1])
         tau = 0.5 * np.minimum(np.array([diff1min] * (l2 - 2), dtype='float32').T,
                                np.array([diff2min] * (l1 - 2), dtype='float32'))
-        efftau = np.minimum(tau, taumax)
+        efftau = np.minimum(tau, delta_max)
         # del diff1 , diff2 , diff1min, diff2min, tau
         # Count equal time events and synchronised events
         eqtime = 0.5 * np.sum(dst12 == 0)
@@ -153,8 +186,9 @@ class EventSeries:
         # del dst12
         return np.float32(count12 / norm), np.float32(count21 / norm)
 
+
     @cached_const('base', 'directedES')
-    def directed_event_sync(self, ):
+    def directed_event_analysis(self, method='eca', symmetric):
         """
         Returns the NxN matrix of the directed event synchronization measure.
         The entry [i, j] denotes the directed event synchronization from
@@ -165,11 +199,11 @@ class EventSeries:
 
         for i in range(0, self.__N):
             for j in range(i+1, self.__N):
-                res[i, j], res[j, i] = self.eventSync(eventmatrix[:, i],
+                res[i, j], res[j, i] = self.event_sync(eventmatrix[:, i],
                                                        eventmatrix[:, j], )
         return res
 
-    def symmetric_event_sync(self):
+    def symmetric_event_analysis(self):
         """
         Returns the NxN matrix of the undirected or symmetrix event
         synchronization measure. It is obtained by the sum of both directed
@@ -183,8 +217,9 @@ class EventSeries:
         Returns the NxN matrix of the antisymmetric synchronization measure.
         It is obtained by the difference of both directed versions.
         """
-        directed = self.directedES()
+        directed = self.directed_event_sync()
         return directed - directed.T
+
 
     @staticmethod
     def event_coincidence_analysis(eventseriesx, eventseriesy, ts1=None, ts2=None, tau=0, delT=3, step=0, windowsize=0):
@@ -250,3 +285,62 @@ class EventSeries:
         del dst
         return (np.float32(prec12) / (l1 - n11), np.float32(trig12) / (l2 - n22), np.float32(prec21) / (l2 - n21),
                 np.float32(trig21) / (l1 - n12))
+
+    # Something for getting climate network!!
+
+
+    def significance_test(self, method=None, surrogate='shuffle', n_surr=1000):
+
+        if method not in ['es', 'eca']:
+            raise ValueError('Method input must be \'eca\' or \'es\'!')
+
+        if surrogate not in ['analytic', 'shuffle']:
+            raise ValueError('Surrogate method must be \'analytic\' or \'shuffle\'!')
+
+        if method is 'eca':
+            if surrogate is 'analytic':
+                # At first: precursor coincidence rates
+                # N_A = number of events of time series 1
+                # N_B = number of events of time series 2
+                # r_p = precursor coincidence rate
+                # r_t = trigger coincidence rate
+                # p = delT/(T - tau)
+                # K = r_p * N_A
+
+                p_value_p_r=0
+                # TODO CHECK RANGES!!!!
+                for K_star in range(K,N_A):
+                    p_value_p_r += sc.stats.binom(K_star, N_A, 1.0 - (1.0 - p)**N_B)
+
+                p_value_t_r=0
+                for K_star in range(K_star,N_B):
+                    p_value_t_r += sc.stats.binom(K_star, N_B, 1.0 - (1.0 - p)**N_A)
+
+                return p_value_p_r, p_value_t_r
+
+
+            if surrogate is 'shuffle':
+                eca_surrogate_results = {'pcr': [], 'tcr': []}
+                shuffle_es1 = es.copy()
+                for i in range(n_surr):
+                    np.random.shuffle(shuffle_es1)
+                    # r_pc, r_tc = ECA(shuffle_es1,es2)
+                    # eca_surrogate_values['pcr'].append(r_pc)
+                    # eca_surrogate_values['tcr'].append(r_tc)
+                eca_surrogate_results['pcr'] = np.flip(np.sort(eca_surrogate_results['pcr']))
+                eca_surrogate_results['tcr'] = np.flip(np.sort(eca_surrogate_results['tcr']))
+                # Count number of entries smaller than actual rates, fraction is p value
+
+
+        if method is 'es':
+            if surrogate is not 'shuffle':
+                raise ValueError('Analytical calculation of significance level is only '
+                                 'possible for event synchronization!')
+            else:
+                test=2
+                # TODO BASICALLY THE SAME AS IN ECA SHUFFLE
+
+
+
+        return 0
+
